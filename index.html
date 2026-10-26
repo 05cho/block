@@ -60,6 +60,14 @@
 
         <!-- Mode & Tool Actions -->
         <div class="flex items-center space-x-2">
+            <!-- Grid Size Input -->
+            <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-700/60 px-2.5 py-1 rounded-lg text-xs font-medium">
+                <span class="text-slate-500 dark:text-slate-400">바닥 크기:</span>
+                <input type="number" id="grid-size-input" value="10" min="2" max="50" class="w-12 px-1 py-0.5 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <span class="text-slate-400">x</span>
+                <span id="grid-size-display" class="font-semibold text-slate-700 dark:text-slate-200">10</span>
+            </div>
+
             <!-- Reset Board -->
             <button id="reset-btn" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition" title="전체 삭제">
                 <i class="fa-solid fa-rotate-left"></i>
@@ -106,13 +114,13 @@
             
             <!-- Tool Selection: Build vs Delete -->
             <div class="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
-                <button id="mode-add" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300">
+                <button id="mode-add" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300" title="단축키: 1">
                     <i class="fa-solid fa-plus-circle text-base"></i>
-                    <span>쌓기</span>
+                    <span>쌓기 <span class="text-[10px] opacity-60 font-normal">(1)</span></span>
                 </button>
-                <button id="mode-remove" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500">
+                <button id="mode-remove" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500" title="단축키: 2">
                     <i class="fa-solid fa-minus-circle text-base"></i>
-                    <span>빼기</span>
+                    <span>빼기 <span class="text-[10px] opacity-60 font-normal">(2)</span></span>
                 </button>
             </div>
 
@@ -151,7 +159,7 @@
     <!-- App Logic & 3D Engine -->
     <script>
         // --- Global Constants & Config ---
-        const GRID_SIZE = 10; // 10x10 Grid Board
+        let GRID_SIZE = 10; // Dynamic Grid Size (Max 50)
         const CUBE_SIZE = 1;
         const COLORS = [
             { name: '우드', hex: 0xE5A967, bg: '#E5A967' },
@@ -170,7 +178,7 @@
 
         // --- 3D Scene Variables ---
         let scene, camera, renderer, controls;
-        let cubesGroup, gridHelper, hoverMesh;
+        let cubesGroup, groundMesh, gridHelper, hoverMesh;
         let raycaster = new THREE.Raycaster();
         let mouse = new THREE.Vector2();
         
@@ -184,6 +192,8 @@
         const modeRemoveBtn = document.getElementById('mode-remove');
         const toastEl = document.getElementById('toast');
         const toastMsg = document.getElementById('toast-msg');
+        const gridSizeInput = document.getElementById('grid-size-input');
+        const gridSizeDisplay = document.getElementById('grid-size-display');
 
         // --- Initialize Three.js Scene ---
         function initScene() {
@@ -207,9 +217,9 @@
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent camera from going too far below ground
+            controls.maxPolarAngle = Math.PI / 2 + 0.05;
             controls.minDistance = 4;
-            controls.maxDistance = 45;
+            controls.maxDistance = 120;
             controls.target.set(0, 0, 0);
 
             // Lighting Setup
@@ -217,13 +227,13 @@
             scene.add(ambientLight);
 
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
-            dirLight.position.set(15, 20, 18);
+            dirLight.position.set(30, 40, 35);
             dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 1024;
-            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
             dirLight.shadow.camera.near = 0.5;
-            dirLight.shadow.camera.far = 60;
-            const d = 10;
+            dirLight.shadow.camera.far = 150;
+            const d = 35;
             dirLight.shadow.camera.left = -d;
             dirLight.shadow.camera.right = d;
             dirLight.shadow.camera.top = d;
@@ -231,7 +241,7 @@
             scene.add(dirLight);
 
             const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
-            dirLight2.position.set(-15, 15, -15);
+            dirLight2.position.set(-30, 30, -30);
             scene.add(dirLight2);
 
             // Cubes Parent Group
@@ -246,6 +256,7 @@
 
             // Event Listeners
             window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', onKeyDown);
             renderer.domElement.addEventListener('pointerdown', onPointerDown);
             renderer.domElement.addEventListener('pointermove', onPointerMove);
 
@@ -253,24 +264,71 @@
             animate();
         }
 
-        // --- Create Grid Base Plate ---
+        // --- Create/Update Grid Base Plate ---
         function createBaseGrid() {
+            if (groundMesh) scene.remove(groundMesh);
+            if (gridHelper) scene.remove(gridHelper);
+
             // Ground Mesh
             const groundGeo = new THREE.BoxGeometry(GRID_SIZE, 0.2, GRID_SIZE);
             const groundMat = new THREE.MeshStandardMaterial({ 
                 color: 0xe2e8f0, 
                 roughness: 0.8 
             });
-            const ground = new THREE.Mesh(groundGeo, groundMat);
-            ground.position.set(0, -0.1, 0);
-            ground.receiveShadow = true;
-            ground.name = 'GROUND';
-            scene.add(ground);
+            groundMesh = new THREE.Mesh(groundGeo, groundMat);
+            groundMesh.position.set(0, -0.1, 0);
+            groundMesh.receiveShadow = true;
+            groundMesh.name = 'GROUND';
+            scene.add(groundMesh);
 
             // Grid Overlay
             gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, 0x64748b, 0xcbd5e1);
             gridHelper.position.y = 0.01;
             scene.add(gridHelper);
+        }
+
+        // Dynamic Grid Size Change Logic
+        function updateGridSize(newSize) {
+            let size = parseInt(newSize, 10);
+            if (isNaN(size) || size < 1) size = 1;
+            if (size > 50) size = 50;
+            
+            GRID_SIZE = size;
+            gridSizeInput.value = GRID_SIZE;
+            gridSizeDisplay.innerText = GRID_SIZE;
+
+            // Clear cubes out of bounds
+            Object.keys(gridState).forEach(key => {
+                const [x, y, z] = key.split(',').map(Number);
+                if (x >= GRID_SIZE || z >= GRID_SIZE) {
+                    removeCube(x, y, z, true);
+                }
+            });
+
+            createBaseGrid();
+        }
+
+        // --- Keyboard Shortcut Controller ---
+        function onKeyDown(e) {
+            // Ignore keydown if editing input elements
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key === '1') {
+                setToolMode('add');
+            } else if (e.key === '2') {
+                setToolMode('remove');
+            }
+        }
+
+        function setToolMode(mode) {
+            activeTool = mode;
+            if (mode === 'add') {
+                modeAddBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300";
+                modeRemoveBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500";
+            } else {
+                modeRemoveBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-rose-600 dark:text-rose-400";
+                modeAddBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-indigo-500";
+            }
         }
 
         // --- Create Preview / Cursor Mesh ---
@@ -312,7 +370,7 @@
 
         // --- Core Business Logic: Check Floating Rule ---
         function canPlaceCube(x, y, z) {
-            if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE || y < 0 || y >= 10) return false;
+            if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE || y < 0 || y >= 50) return false;
             if (gridState[getKey(x, y, z)]) return false;
             if (y === 0) return true;
             return !!gridState[getKey(x, y - 1, z)];
@@ -359,12 +417,12 @@
             return true;
         }
 
-        function removeCube(x, y, z) {
+        function removeCube(x, y, z, force = false) {
             const key = getKey(x, y, z);
             const cube = gridState[key];
             if (!cube) return false;
 
-            if (!canRemoveCube(x, y, z)) {
+            if (!force && !canRemoveCube(x, y, z)) {
                 showToast("위에 있는 나무부터 먼저 치워야 해요!");
                 return false;
             }
@@ -392,6 +450,7 @@
             });
             gridState = {};
             updateCubeCount();
+            showToast("모든 쌓기나무가 삭제되었습니다.");
         }
 
         // --- Mouse Interaction & Raycasting ---
@@ -497,7 +556,7 @@
 
         // --- Camera Preset Views ---
         function setView(viewType) {
-            const dist = 20;
+            const dist = Math.max(20, GRID_SIZE * 2);
             controls.reset();
             
             document.querySelectorAll('.view-btn').forEach(btn => {
@@ -525,7 +584,7 @@
                     break;
                 case 'iso':
                 default:
-                    camera.position.set(12, 14, 16);
+                    camera.position.set(GRID_SIZE * 1.2, GRID_SIZE * 1.4, GRID_SIZE * 1.6);
                     break;
             }
             controls.target.set(0, 0, 0);
@@ -610,30 +669,27 @@
             initPalette();
 
             // Mode Switching
-            modeAddBtn.addEventListener('click', () => {
-                activeTool = 'add';
-                modeAddBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300";
-                modeRemoveBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500";
-            });
-
-            modeRemoveBtn.addEventListener('click', () => {
-                activeTool = 'remove';
-                modeRemoveBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-rose-600 dark:text-rose-400";
-                modeAddBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-indigo-500";
-            });
+            modeAddBtn.addEventListener('click', () => setToolMode('add'));
+            modeRemoveBtn.addEventListener('click', () => setToolMode('remove'));
 
             // Reset Button
             document.getElementById('reset-btn').addEventListener('click', clearAllCubes);
+
+            // Grid Size Input Binding
+            gridSizeInput.addEventListener('change', (e) => {
+                updateGridSize(e.target.value);
+            });
 
             // Grid Toggle
             document.getElementById('toggle-grid').addEventListener('click', () => {
                 gridHelper.visible = !gridHelper.visible;
             });
 
-            // Add default starter cubes at grid center (10x10 grid -> center is x:4~5, z:4~5)
-            addCube(4, 0, 4);
-            addCube(4, 1, 4);
-            addCube(5, 0, 4);
+            // Add default starter cubes at grid center
+            const center = Math.floor(GRID_SIZE / 2);
+            addCube(center - 1, 0, center - 1);
+            addCube(center - 1, 1, center - 1);
+            addCube(center, 0, center - 1);
         };
     </script>
 </body>
