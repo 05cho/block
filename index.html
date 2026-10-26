@@ -114,13 +114,13 @@
             
             <!-- Tool Selection: Build vs Delete -->
             <div class="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
-                <button id="mode-add" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300" title="단축키: 1">
+                <button id="mode-add" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300" title="단축키: Q">
                     <i class="fa-solid fa-plus-circle text-base"></i>
-                    <span>쌓기 <span class="text-[10px] opacity-60 font-normal">(1)</span></span>
+                    <span>쌓기 <span class="text-[10px] opacity-60 font-normal">(Q)</span></span>
                 </button>
-                <button id="mode-remove" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500" title="단축키: 2">
+                <button id="mode-remove" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500" title="단축키: W">
                     <i class="fa-solid fa-minus-circle text-base"></i>
-                    <span>빼기 <span class="text-[10px] opacity-60 font-normal">(2)</span></span>
+                    <span>빼기 <span class="text-[10px] opacity-60 font-normal">(W)</span></span>
                 </button>
             </div>
 
@@ -313,9 +313,9 @@
             // Ignore keydown if editing input elements
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-            if (e.key === '1') {
+            if (e.key === 'q' || e.key === 'Q') {
                 setToolMode('add');
-            } else if (e.key === '2') {
+            } else if (e.key === 'w' || e.key === 'W') {
                 setToolMode('remove');
             }
         }
