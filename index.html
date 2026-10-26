@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초등 6학년 3D 쌓기나무 교구</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard', 'Noto Sans KR', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Canvas Confetti for Celebration -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
+
+    <!-- Header / Navigation -->
+    <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between z-10 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-md">
+                <i class="fa-solid fa-cubes text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">
+                    3D 쌓기나무 교실
+                </h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">초등학교 6학년 공간과 입체</p>
+            </div>
+        </div>
+
+        <!-- Mode & Tool Actions -->
+        <div class="flex items-center space-x-2">
+            <!-- Reset Board -->
+            <button id="reset-btn" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition" title="전체 삭제">
+                <i class="fa-solid fa-rotate-left"></i>
+            </button>
+
+            <!-- Dark / Light Theme Toggle -->
+            <button id="theme-toggle" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition" title="다크/라이트 모드">
+                <i id="theme-icon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 relative flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Canvas Container -->
+        <div id="canvas-container" class="w-full h-full relative cursor-grab active:cursor-grabbing">
+            <!-- Floating Counter Badge -->
+            <div class="absolute top-4 left-4 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center space-x-2 pointer-events-none">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">총 쌓기나무:</span>
+                <span id="cube-count" class="text-lg font-bold text-indigo-600 dark:indigo-400">0</span>
+                <span class="text-xs text-slate-400">개</span>
+            </div>
+
+            <!-- View Angle Preset Buttons -->
+            <div class="absolute top-4 right-4 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1.5 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex flex-col space-y-1">
+                <span class="text-[10px] text-center font-bold text-slate-400 py-0.5">시점 선택</span>
+                <button onclick="setView('iso')" class="view-btn px-2.5 py-1 text-xs rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-700 font-medium transition text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-slate-700/50" data-view="iso">입체(입체)</button>
+                <button onclick="setView('top')" class="view-btn px-2.5 py-1 text-xs rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-700 font-medium transition text-slate-600 dark:text-slate-300" data-view="top">위 (Top)</button>
+                <button onclick="setView('front')" class="view-btn px-2.5 py-1 text-xs rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-700 font-medium transition text-slate-600 dark:text-slate-300" data-view="front">앞 (Front)</button>
+                <button onclick="setView('left')" class="view-btn px-2.5 py-1 text-xs rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-700 font-medium transition text-slate-600 dark:text-slate-300" data-view="left">왼쪽 (Left)</button>
+                <button onclick="setView('right')" class="view-btn px-2.5 py-1 text-xs rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-700 font-medium transition text-slate-600 dark:text-slate-300" data-view="right">오른쪽 (Right)</button>
+            </div>
+
+            <!-- Toast Alert for Rules (e.g., Flying Cube prevention) -->
+            <div id="toast" class="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 bg-rose-600 text-white text-xs sm:text-sm px-4 py-2 rounded-full shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none flex items-center space-x-2">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span id="toast-msg">공중에 쌓기나무를 띄울 수 없습니다!</span>
+            </div>
+        </div>
+
+        <!-- Bottom Control Bar (Action Modes & Palette) -->
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur px-4 py-3 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex items-center space-x-3 max-w-[95vw] overflow-x-auto">
+            
+            <!-- Tool Selection: Build vs Delete -->
+            <div class="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
+                <button id="mode-add" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300">
+                    <i class="fa-solid fa-plus-circle text-base"></i>
+                    <span>쌓기</span>
+                </button>
+                <button id="mode-remove" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500">
+                    <i class="fa-solid fa-minus-circle text-base"></i>
+                    <span>빼기</span>
+                </button>
+            </div>
+
+            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+
+            <!-- Color Palette & Custom RGB Picker -->
+            <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-1.5" id="color-palette">
+                    <!-- Color dots added dynamically via JS -->
+                </div>
+                <div class="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5"></div>
+                <!-- Custom RGB Color Picker -->
+                <label for="rgb-picker" class="flex items-center gap-1 cursor-pointer p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition text-xs font-semibold text-slate-600 dark:text-slate-300" title="사용자 정의 RGB 색상 선택">
+                    <div class="relative w-7 h-7 rounded-full overflow-hidden border-2 border-slate-300 dark:border-slate-600 shadow-sm flex items-center justify-center bg-gradient-to-tr from-rose-500 via-emerald-400 to-indigo-500">
+                        <input type="color" id="rgb-picker" value="#3B82F6" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150">
+                    </div>
+                    <span class="text-[11px] hidden sm:inline font-medium">RGB 조합</span>
+                </label>
+            </div>
+
+            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+
+            <!-- Helper Toggles -->
+            <div class="flex items-center space-x-2">
+                <button id="toggle-grid" class="p-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition" title="격자 표시 토글">
+                    <i class="fa-solid fa-border-all"></i>
+                </button>
+                <button id="toggle-numbers" class="p-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition" title="위에서 본 개수 표기">
+                    <i class="fa-solid fa-hashtag"></i>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- App Logic & 3D Engine -->
+    <script>
+        // --- Global Constants & Config ---
+        const GRID_SIZE = 10; // 10x10 Grid Board
+        const CUBE_SIZE = 1;
+        const COLORS = [
+            { name: '우드', hex: 0xE5A967, bg: '#E5A967' },
+            { name: '흰색', hex: 0xFFFFFF, bg: '#FFFFFF' },
+            { name: '검정', hex: 0x222222, bg: '#222222' },
+            { name: '파랑', hex: 0x3B82F6, bg: '#3B82F6' },
+            { name: '빨강', hex: 0xEF4444, bg: '#EF4444' },
+            { name: '초록', hex: 0x10B981, bg: '#10B981' },
+            { name: '노랑', hex: 0xF59E0B, bg: '#F59E0B' },
+            { name: '보라', hex: 0x8B5CF6, bg: '#8B5CF6' }
+        ];
+
+        let selectedColor = COLORS[0].hex;
+        let activeTool = 'add'; // 'add' or 'remove'
+        let showNumbers = false;
+
+        // --- 3D Scene Variables ---
+        let scene, camera, renderer, controls;
+        let cubesGroup, gridHelper, hoverMesh;
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        
+        // Grid State Matrix: 3D Grid [x][y][z] storing mesh reference
+        let gridState = {}; 
+
+        // --- DOM Elements ---
+        const container = document.getElementById('canvas-container');
+        const cubeCountEl = document.getElementById('cube-count');
+        const modeAddBtn = document.getElementById('mode-add');
+        const modeRemoveBtn = document.getElementById('mode-remove');
+        const toastEl = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-msg');
+
+        // --- Initialize Three.js Scene ---
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf1f5f9); // Light background
+
+            // Camera Setup
+            const aspect = container.clientWidth / container.clientHeight;
+            camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+            camera.position.set(12, 14, 16);
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent camera from going too far below ground
+            controls.minDistance = 4;
+            controls.maxDistance = 45;
+            controls.target.set(0, 0, 0);
+
+            // Lighting Setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            dirLight.position.set(15, 20, 18);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 60;
+            const d = 10;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+            dirLight2.position.set(-15, 15, -15);
+            scene.add(dirLight2);
+
+            // Cubes Parent Group
+            cubesGroup = new THREE.Group();
+            scene.add(cubesGroup);
+
+            // Ground Plate & Grid Helper
+            createBaseGrid();
+
+            // Hover Preview Box
+            createHoverMesh();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('pointerdown', onPointerDown);
+            renderer.domElement.addEventListener('pointermove', onPointerMove);
+
+            // Initial Render Loop
+            animate();
+        }
+
+        // --- Create Grid Base Plate ---
+        function createBaseGrid() {
+            // Ground Mesh
+            const groundGeo = new THREE.BoxGeometry(GRID_SIZE, 0.2, GRID_SIZE);
+            const groundMat = new THREE.MeshStandardMaterial({ 
+                color: 0xe2e8f0, 
+                roughness: 0.8 
+            });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.position.set(0, -0.1, 0);
+            ground.receiveShadow = true;
+            ground.name = 'GROUND';
+            scene.add(ground);
+
+            // Grid Overlay
+            gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, 0x64748b, 0xcbd5e1);
+            gridHelper.position.y = 0.01;
+            scene.add(gridHelper);
+        }
+
+        // --- Create Preview / Cursor Mesh ---
+        function createHoverMesh() {
+            const geo = new THREE.BoxGeometry(CUBE_SIZE * 1.01, CUBE_SIZE * 1.01, CUBE_SIZE * 1.01);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0x6366f1,
+                transparent: true,
+                opacity: 0.4,
+                wireframe: false
+            });
+            hoverMesh = new THREE.Mesh(geo, mat);
+            hoverMesh.visible = false;
+            scene.add(hoverMesh);
+        }
+
+        // --- Coordinate Converter helpers ---
+        function gridToWorld(x, y, z) {
+            const offset = (GRID_SIZE - 1) / 2;
+            return new THREE.Vector3(
+                x - offset,
+                y + CUBE_SIZE / 2,
+                z - offset
+            );
+        }
+
+        function worldToGrid(worldPos) {
+            const offset = (GRID_SIZE - 1) / 2;
+            return {
+                x: Math.round(worldPos.x + offset),
+                y: Math.round(worldPos.y - CUBE_SIZE / 2),
+                z: Math.round(worldPos.z + offset)
+            };
+        }
+
+        function getKey(x, y, z) {
+            return `${x},${y},${z}`;
+        }
+
+        // --- Core Business Logic: Check Floating Rule ---
+        function canPlaceCube(x, y, z) {
+            if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE || y < 0 || y >= 10) return false;
+            if (gridState[getKey(x, y, z)]) return false;
+            if (y === 0) return true;
+            return !!gridState[getKey(x, y - 1, z)];
+        }
+
+        function canRemoveCube(x, y, z) {
+            if (gridState[getKey(x, y + 1, z)]) {
+                return false;
+            }
+            return true;
+        }
+
+        // --- Add / Remove Cubes ---
+        function addCube(x, y, z, color = selectedColor) {
+            if (!canPlaceCube(x, y, z)) {
+                showToast("공중에 쌓기나무를 띄울 수 없습니다!");
+                return false;
+            }
+
+            const worldPos = gridToWorld(x, y, z);
+            const geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.3,
+                metalness: 0.1
+            });
+
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.copy(worldPos);
+            cube.castShadow = true;
+            cube.receiveShadow = true;
+
+            const edges = new THREE.EdgesGeometry(geometry);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1, opacity: 0.15, transparent: true });
+            const wireframe = new THREE.LineSegments(edges, lineMat);
+            cube.add(wireframe);
+
+            cube.userData = { gridX: x, gridY: y, gridZ: z };
+            cubesGroup.add(cube);
+
+            gridState[getKey(x, y, z)] = cube;
+            updateCubeCount();
+            return true;
+        }
+
+        function removeCube(x, y, z) {
+            const key = getKey(x, y, z);
+            const cube = gridState[key];
+            if (!cube) return false;
+
+            if (!canRemoveCube(x, y, z)) {
+                showToast("위에 있는 나무부터 먼저 치워야 해요!");
+                return false;
+            }
+
+            cubesGroup.remove(cube);
+            cube.geometry.dispose();
+            cube.material.dispose();
+            delete gridState[key];
+
+            updateCubeCount();
+            return true;
+        }
+
+        function updateCubeCount() {
+            const count = Object.keys(gridState).length;
+            cubeCountEl.innerText = count;
+        }
+
+        function clearAllCubes() {
+            Object.keys(gridState).forEach(key => {
+                const cube = gridState[key];
+                cubesGroup.remove(cube);
+                cube.geometry.dispose();
+                cube.material.dispose();
+            });
+            gridState = {};
+            updateCubeCount();
+        }
+
+        // --- Mouse Interaction & Raycasting ---
+        let pointerDownTime = 0;
+
+        function getIntersectionPoint(e) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects([...cubesGroup.children, scene.getObjectByName('GROUND')], false);
+            return intersects.length > 0 ? intersects[0] : null;
+        }
+
+        function onPointerMove(e) {
+            const intersect = getIntersectionPoint(e);
+
+            if (intersect) {
+                let targetPos;
+                if (activeTool === 'add') {
+                    if (intersect.object.name === 'GROUND') {
+                        const worldPoint = intersect.point;
+                        const offset = (GRID_SIZE - 1) / 2;
+                        const gx = Math.floor(worldPoint.x + offset + 0.5);
+                        const gz = Math.floor(worldPoint.z + offset + 0.5);
+                        targetPos = { x: gx, y: 0, z: gz };
+                    } else {
+                        const normal = intersect.face.normal;
+                        const cube = intersect.object;
+                        targetPos = {
+                            x: cube.userData.gridX + Math.round(normal.x),
+                            y: cube.userData.gridY + Math.round(normal.y),
+                            z: cube.userData.gridZ + Math.round(normal.z)
+                        };
+                    }
+
+                    if (canPlaceCube(targetPos.x, targetPos.y, targetPos.z)) {
+                        const wp = gridToWorld(targetPos.x, targetPos.y, targetPos.z);
+                        hoverMesh.position.copy(wp);
+                        hoverMesh.material.color.setHex(0x6366f1);
+                        hoverMesh.visible = true;
+                        return;
+                    }
+                } else if (activeTool === 'remove') {
+                    if (intersect.object !== scene.getObjectByName('GROUND')) {
+                        const cube = intersect.object;
+                        if (canRemoveCube(cube.userData.gridX, cube.userData.gridY, cube.userData.gridZ)) {
+                            hoverMesh.position.copy(cube.position);
+                            hoverMesh.material.color.setHex(0xf43f5e);
+                            hoverMesh.visible = true;
+                            return;
+                        }
+                    }
+                }
+            }
+            hoverMesh.visible = false;
+        }
+
+        function onPointerDown(e) {
+            pointerDownTime = Date.now();
+            
+            const onPointerUp = (upEvt) => {
+                renderer.domElement.removeEventListener('pointerup', onPointerUp);
+                const duration = Date.now() - pointerDownTime;
+                if (duration > 250) return;
+
+                const intersect = getIntersectionPoint(upEvt);
+                if (!intersect) return;
+
+                if (activeTool === 'add') {
+                    let target;
+                    if (intersect.object.name === 'GROUND') {
+                        const worldPoint = intersect.point;
+                        const offset = (GRID_SIZE - 1) / 2;
+                        target = {
+                            x: Math.floor(worldPoint.x + offset + 0.5),
+                            y: 0,
+                            z: Math.floor(worldPoint.z + offset + 0.5)
+                        };
+                    } else {
+                        const normal = intersect.face.normal;
+                        const cube = intersect.object;
+                        target = {
+                            x: cube.userData.gridX + Math.round(normal.x),
+                            y: cube.userData.gridY + Math.round(normal.y),
+                            z: cube.userData.gridZ + Math.round(normal.z)
+                        };
+                    }
+                    addCube(target.x, target.y, target.z);
+                    onPointerMove(upEvt);
+                } else if (activeTool === 'remove') {
+                    if (intersect.object.name !== 'GROUND') {
+                        const cube = intersect.object;
+                        removeCube(cube.userData.gridX, cube.userData.gridY, cube.userData.gridZ);
+                        onPointerMove(upEvt);
+                    }
+                }
+            };
+
+            renderer.domElement.addEventListener('pointerup', onPointerUp);
+        }
+
+        // --- Camera Preset Views ---
+        function setView(viewType) {
+            const dist = 20;
+            controls.reset();
+            
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                if (btn.dataset.view === viewType) {
+                    btn.classList.add('bg-indigo-50', 'dark:bg-slate-700', 'text-indigo-600', 'dark:text-indigo-400');
+                    btn.classList.remove('text-slate-600', 'dark:text-slate-300');
+                } else {
+                    btn.classList.remove('bg-indigo-50', 'dark:bg-slate-700', 'text-indigo-600', 'dark:text-indigo-400');
+                    btn.classList.add('text-slate-600', 'dark:text-slate-300');
+                }
+            });
+
+            switch (viewType) {
+                case 'top':
+                    camera.position.set(0, dist, 0.001);
+                    break;
+                case 'front':
+                    camera.position.set(0, 0, dist);
+                    break;
+                case 'left':
+                    camera.position.set(-dist, 0, 0);
+                    break;
+                case 'right':
+                    camera.position.set(dist, 0, 0);
+                    break;
+                case 'iso':
+                default:
+                    camera.position.set(12, 14, 16);
+                    break;
+            }
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // --- Toast Alert Notification ---
+        let toastTimeout;
+        function showToast(message) {
+            toastMsg.innerText = message;
+            toastEl.classList.remove('opacity-0');
+            toastEl.classList.add('opacity-100');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toastEl.classList.remove('opacity-100');
+                toastEl.classList.add('opacity-0');
+            }, 2500);
+        }
+
+        // --- Color Palette UI Generation ---
+        function initPalette() {
+            const container = document.getElementById('color-palette');
+            container.innerHTML = '';
+
+            COLORS.forEach((color, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `w-7 h-7 rounded-full border-2 transition-transform ${idx === 0 ? 'scale-110 border-indigo-600 dark:border-indigo-400 shadow' : 'border-slate-300 dark:border-slate-600 hover:scale-105'}`;
+                btn.style.backgroundColor = color.bg;
+                btn.title = color.name;
+                btn.onclick = () => {
+                    selectedColor = color.hex;
+                    clearPaletteSelection();
+                    btn.classList.add('scale-110', 'border-indigo-600', 'dark:border-indigo-400', 'shadow');
+                    btn.classList.remove('border-slate-300', 'dark:border-slate-600');
+                };
+                container.appendChild(btn);
+            });
+
+            // RGB Custom Picker binding
+            const rgbPicker = document.getElementById('rgb-picker');
+            rgbPicker.addEventListener('input', (e) => {
+                const hexStr = e.target.value;
+                selectedColor = parseInt(hexStr.replace('#', '0x'), 16);
+                clearPaletteSelection();
+            });
+        }
+
+        function clearPaletteSelection() {
+            document.querySelectorAll('#color-palette button').forEach(b => {
+                b.classList.remove('scale-110', 'border-indigo-600', 'dark:border-indigo-400', 'shadow');
+                b.classList.add('border-slate-300', 'dark:border-slate-600');
+            });
+        }
+
+        // --- Dark/Light Mode Switcher ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+
+        themeToggleBtn.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            themeIcon.className = isDark ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon';
+            scene.background = new THREE.Color(isDark ? 0x0f172a : 0xf1f5f9);
+        });
+
+        // --- Window Resize ---
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- Initialization & UI Binding ---
+        window.onload = function() {
+            initScene();
+            initPalette();
+
+            // Mode Switching
+            modeAddBtn.addEventListener('click', () => {
+                activeTool = 'add';
+                modeAddBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300";
+                modeRemoveBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-rose-500";
+            });
+
+            modeRemoveBtn.addEventListener('click', () => {
+                activeTool = 'remove';
+                modeRemoveBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm bg-white dark:bg-slate-600 text-rose-600 dark:text-rose-400";
+                modeAddBtn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-500 dark:text-slate-400 hover:text-indigo-500";
+            });
+
+            // Reset Button
+            document.getElementById('reset-btn').addEventListener('click', clearAllCubes);
+
+            // Grid Toggle
+            document.getElementById('toggle-grid').addEventListener('click', () => {
+                gridHelper.visible = !gridHelper.visible;
+            });
+
+            // Add default starter cubes at grid center (10x10 grid -> center is x:4~5, z:4~5)
+            addCube(4, 0, 4);
+            addCube(4, 1, 4);
+            addCube(5, 0, 4);
+        };
+    </script>
+</body>
+</html>
